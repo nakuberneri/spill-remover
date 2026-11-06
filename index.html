@@ -28,6 +28,8 @@ main{max-width:720px;margin:0 auto;padding:32px 16px 48px;display:grid;gap:20px}
 header{display:grid;gap:6px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 h1{font:800 clamp(28px,6vw,40px)/1.05 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.brand{display:grid;gap:4px}
+.by{margin:0;font:500 14px var(--mono);color:var(--muted);letter-spacing:.02em}
 .lede{color:var(--muted);margin:0;max-width:62ch}
 .lang{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .lang button{border:0;background:transparent;color:var(--muted);font:500 13px var(--mono);padding:6px 10px;cursor:pointer}
@@ -80,7 +82,10 @@ footer{font-size:13px;color:var(--muted)}
 <main>
   <header>
     <div class="top">
-      <h1 data-i18n="title">Spill Remover</h1>
+      <div class="brand">
+        <h1 data-i18n="title">Spill Remover</h1>
+        <p class="by">by Nahuel Berneri</p>
+      </div>
       <div class="lang" role="group" aria-label="Language">
         <button type="button" id="lang-en" aria-pressed="true">EN</button>
         <button type="button" id="lang-es" aria-pressed="false">ES</button>
