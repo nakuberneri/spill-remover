@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spill Remover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: one narrow column of numbered "channel strip" steps, meter-amber accent on graphite neutrals */
+  --bg:#eef0ee; --panel:#ffffff; --ink:#1d2321; --muted:#5d6763; --line:#d4d9d6;
+  --accent:#d98a12; --accent-ink:#1d1300; --good:#2f8a4e; --bad:#b83a2c;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141817; --panel:#1d2321; --ink:#e8ece9; --muted:#9aa5a0; --line:#2f3835;
+  --accent:#f0a22b; --accent-ink:#1d1300; --good:#5cc07c; --bad:#e56a5a; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#141817; --panel:#1d2321; --ink:#e8ece9; --muted:#9aa5a0; --line:#2f3835;
+  --accent:#f0a22b; --accent-ink:#1d1300; --good:#5cc07c; --bad:#e56a5a; color-scheme:dark;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--body)}
+main{max-width:720px;margin:0 auto;padding:32px 16px 48px;display:grid;gap:20px}
+header{display:grid;gap:6px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font:800 clamp(28px,6vw,40px)/1.05 var(--display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{color:var(--muted);margin:0;max-width:62ch}
+.lang{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.lang button{border:0;background:transparent;color:var(--muted);font:500 13px var(--mono);padding:6px 10px;cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:12px}
+.step h2{margin:0;font:700 18px/1.2 var(--display);display:flex;gap:10px;align-items:baseline}
+.num{font:500 13px var(--mono);color:var(--accent-ink);background:var(--accent);border-radius:4px;padding:1px 7px}
+.hint{color:var(--muted);font-size:14px;margin:0;max-width:65ch}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.files{grid-template-columns:1fr}}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px;display:grid;gap:6px;cursor:pointer;min-height:96px;align-content:start}
+.drop:hover,.drop.over,.drop:focus-within{border-color:var(--accent)}
+.drop .lbl{font-weight:600}
+.drop .meta{font:13px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.drop.ok{border-style:solid;border-color:var(--good)}
+.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media (max-width:520px){.presets{grid-template-columns:1fr}}
+.presets label{border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;display:grid;gap:2px}
+.presets input{position:absolute;opacity:0}
+.presets label:has(input:checked){border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.presets label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.presets b{font-family:var(--display)}
+.presets span{font-size:13px;color:var(--muted)}
+button.go{justify-self:start;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:11px 20px;font:700 15px var(--display);cursor:pointer}
+button.go:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.meter{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+@media (prefers-reduced-motion:reduce){.meter i{transition:none}}
+.status{font:14px var(--mono);color:var(--muted);margin:0}
+.status.err{color:var(--bad)}
+.result{display:grid;gap:12px}
+.ab{display:grid;gap:8px}
+.ab div{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center}
+.ab span{font:13px var(--mono);color:var(--muted)}
+audio{width:100%;height:36px}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font:13px var(--mono);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-variant-numeric:tabular-nums}
+.chip b{color:var(--good)}
+.dl{display:flex;gap:10px;flex-wrap:wrap}
+.dl button{background:transparent;color:var(--ink);border:1px solid var(--ink);border-radius:8px;padding:9px 14px;font:600 14px var(--body);cursor:pointer}
+details{font-size:14px;color:var(--muted)}
+details summary{cursor:pointer;color:var(--ink);font-weight:600}
+details ul{padding-left:20px;margin:8px 0 0;display:grid;gap:4px}
+footer{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="top">
+      <h1 data-i18n="title">Spill Remover</h1>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" id="lang-en" aria-pressed="true">EN</button>
+        <button type="button" id="lang-es" aria-pressed="false">ES</button>
+      </div>
+    </div>
+    <p class="lede" data-i18n="lede">Remove spill from one instrument's mic using a clean recording of the instrument that bleeds into it. Everything runs in your browser; your audio is never uploaded.</p>
+  </header>
+
+  <section class="step" aria-labelledby="s1">
+    <h2 id="s1"><span class="num">01</span><span data-i18n="s1">Load two WAV files</span></h2>
+    <p class="hint" data-i18n="s1h">Export both tracks from your DAW from the same start point, same length and same sample rate. Mono or stereo WAV, 16/24/32-bit.</p>
+    <div class="files">
+      <label class="drop" id="drop-target">
+        <input type="file" id="file-target" accept=".wav,audio/wav,audio/x-wav">
+        <span class="lbl" data-i18n="tgt">Track to clean</span>
+        <span class="meta" id="meta-target" data-i18n="tgtm">e.g. Sax mic with guitar spill. Click or drop a file.</span>
+      </label>
+      <label class="drop" id="drop-ref">
+        <input type="file" id="file-ref" accept=".wav,audio/wav,audio/x-wav">
+        <span class="lbl" data-i18n="ref">Spill source (reference)</span>
+        <span class="meta" id="meta-ref" data-i18n="refm">e.g. Guitar DI or close mic. Click or drop a file.</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s2">
+    <h2 id="s2"><span class="num">02</span><span data-i18n="s2">Choose strength</span></h2>
+    <div class="presets" role="radiogroup">
+      <label><input type="radio" name="preset" id="p-light" value="light" checked><b data-i18n="pl">Light</b><span data-i18n="plh">Subtracts the spill only. Safest, no artefacts.</span></label>
+      <label><input type="radio" name="preset" id="p-medium" value="medium"><b data-i18n="pm">Medium</b><span data-i18n="pmh">Adds gentle spectral clean-up of what's left.</span></label>
+      <label><input type="radio" name="preset" id="p-strong" value="strong"><b data-i18n="ps">Strong</b><span data-i18n="psh">Cleanest. Listen for watery note tails.</span></label>
+    </div>
+  </section>
+
+  <section class="step" aria-labelledby="s3">
+    <h2 id="s3"><span class="num">03</span><span data-i18n="s3">Process and listen</span></h2>
+    <button class="go" id="go" type="button" disabled data-i18n="go">Remove spill</button>
+    <div class="meter" aria-hidden="true"><i id="bar"></i></div>
+    <p class="status" id="status" role="status" data-i18n="wait">Waiting for both files.</p>
+    <div class="result" id="result" hidden>
+      <div class="stats" id="stats"></div>
+      <div class="ab">
+        <div><span data-i18n="orig">Original</span><audio id="a-orig" controls preload="metadata"></audio></div>
+        <div><span data-i18n="clean">Cleaned</span><audio id="a-clean" controls preload="metadata"></audio></div>
+        <div><span data-i18n="removed">Removed</span><audio id="a-bleed" controls preload="metadata"></audio></div>
+      </div>
+      <p class="hint" data-i18n="removedh">“Removed” should sound like the reference instrument only. If you hear the target instrument in it, use a lighter setting.</p>
+      <div class="dl" id="dl"><button type="button" id="save" data-i18n="save">Download cleaned WAV</button></div>
+    </div>
+  </section>
+
+  <details>
+    <summary data-i18n="how">How it works and tips</summary>
+    <ul>
+      <li data-i18n="t1">The tool compares both tracks across the whole file and learns how the reference reaches the other mic: level, EQ, delay and polarity. It then builds that spill from the reference and subtracts it.</li>
+      <li data-i18n="t2">A DI or close mic of the spilling instrument works best. Small timing offsets (up to ~100 ms) are handled automatically.</li>
+      <li data-i18n="t3">It works best where the spill is a "linear" copy of the reference. Heavy amp distortion or a moving player leaves some residue; that's what Medium and Strong are for.</li>
+      <li data-i18n="t4">The cleaned file is 24-bit, the same length as your input. Drop it at the session start and it lines up.</li>
+    </ul>
+  </details>
+  
+</main>
+
+<script type="text/plain" id="dsp-src">
+// ---- DSP core: reference-based de-bleed (shared by worker and node test) ----
+function fft(re, im, inv) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = (inv ? 2 : -2) * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), h = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1, ci = 0;
+      for (let k = 0; k < h; k++) {
+        const a = i + k, b = a + h;
+        const xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+        const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t;
+      }
+    }
+  }
+  if (inv) for (let i = 0; i < n; i++) { re[i] /= n; im[i] /= n; }
+}
+function hann(N) { const w = new Float64Array(N); for (let i = 0; i < N; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / N); return w; }
+
+// frame helper: returns spectrum of x starting at pos (zero padded at edges)
+function frameSpec(x, pos, w, re, im) {
+  const N = w.length;
+  for (let i = 0; i < N; i++) { const p = pos + i; re[i] = (p >= 0 && p < x.length) ? x[p] * w[i] : 0; im[i] = 0; }
+  fft(re, im, false);
+}
+
+// Stage 1: learn H(f) = Sxg / Sgg over whole file, subtract H*G.  Returns {clean, bleed}
+function linearDebleed(sax, ref, N, progress) {
+  const hop = N / 4, w = hann(N), nb = N / 2 + 1, len = sax.length;
+  const start = -N + hop, frames = Math.ceil((len - start) / hop);
+  const cr = new Float64Array(nb), ci = new Float64Array(nb), gg = new Float64Array(nb);
+  const sr_ = new Float64Array(N), si = new Float64Array(N), gr = new Float64Array(N), gi = new Float64Array(N);
+  for (let f = 0; f < frames; f++) {
+    const pos = start + f * hop;
+    frameSpec(sax, pos, w, sr_, si); frameSpec(ref, pos, w, gr, gi);
+    for (let k = 0; k < nb; k++) {
+      cr[k] += sr_[k] * gr[k] + si[k] * gi[k];
+      ci[k] += si[k] * gr[k] - sr_[k] * gi[k];
+      gg[k] += gr[k] * gr[k] + gi[k] * gi[k];
+    }
+    if (progress && f % 20 === 0) progress(0.5 * f / frames);
+  }
+  let mx = 0; for (let k = 0; k < nb; k++) mx = Math.max(mx, gg[k]);
+  const Hr = new Float64Array(nb), Hi = new Float64Array(nb);
+  for (let k = 0; k < nb; k++) { const d = gg[k] + 1e-9 * mx + 1e-20; Hr[k] = cr[k] / d; Hi[k] = ci[k] / d; }
+  // pass 2: synthesize bleed estimate = H*G via WOLA, clean = sax - bleed
+  const bleed = new Float64Array(len), norm = new Float64Array(len);
+  for (let f = 0; f < frames; f++) {
+    const pos = start + f * hop;
+    frameSpec(ref, pos, w, gr, gi);
+    for (let k = 0; k < nb; k++) {
+      const a = gr[k], b = gi[k];
+      sr_[k] = Hr[k] * a - Hi[k] * b; si[k] = Hr[k] * b + Hi[k] * a;
+      if (k > 0 && k < N / 2) { sr_[N - k] = sr_[k]; si[N - k] = -si[k]; }
+    }
+    fft(sr_, si, true);
+    for (let i = 0; i < N; i++) { const p = pos + i; if (p >= 0 && p < len) { bleed[p] += sr_[i] * w[i]; norm[p] += w[i] * w[i]; } }
+    if (progress && f % 20 === 0) progress(0.5 + 0.5 * f / frames);
+  }
+  const clean = new Float64Array(len);
+  for (let i = 0; i < len; i++) { bleed[i] = norm[i] > 1e-6 ? bleed[i] / norm[i] : 0; clean[i] = sax[i] - bleed[i]; }
+  return { clean, bleed };
+}
+
+// Stage 2 (optional): spectral post-filter on residual, driven by the spill estimate
+function postFilter(clean, bleed, alpha, floorDb, progress) {
+  const N = 2048, hop = 512, w = hann(N), nb = N / 2 + 1, len = clean.length;
+  const start = -N + hop, frames = Math.ceil((len - start) / hop);
+  const er = new Float64Array(N), ei = new Float64Array(N), br = new Float64Array(N), bi = new Float64Array(N);
+  const Rs = new Float64Array(nb), gPrev = new Float64Array(nb).fill(1);
+  const out = new Float64Array(len), norm = new Float64Array(len), fl = Math.pow(10, floorDb / 20);
+  const c = 0.1 * alpha;
+  for (let f = 0; f < frames; f++) {
+    const pos = start + f * hop;
+    frameSpec(clean, pos, w, er, ei); frameSpec(bleed, pos, w, br, bi);
+    for (let k = 0; k < nb; k++) {
+      const B2 = br[k] * br[k] + bi[k] * bi[k];
+      Rs[k] = 0.7 * Rs[k] + 0.3 * B2;                 // smoothed bleed power
+      const E2 = er[k] * er[k] + ei[k] * ei[k];
+      let g = 1 - c * Rs[k] / (E2 + 1e-20);
+      g = g > 0 ? Math.sqrt(g) : 0;
+      if (g < fl) g = fl;
+      g = 0.5 * g + 0.5 * gPrev[k]; gPrev[k] = g;      // temporal smoothing (less musical noise)
+      er[k] *= g; ei[k] *= g;
+      if (k > 0 && k < N / 2) { er[N - k] = er[k]; ei[N - k] = -ei[k]; }
+    }
+    fft(er, ei, true);
+    for (let i = 0; i < N; i++) { const p = pos + i; if (p >= 0 && p < len) { out[p] += er[i] * w[i]; norm[p] += w[i] * w[i]; } }
+    if (progress && f % 50 === 0) progress(f / frames);
+  }
+  for (let i = 0; i < len; i++) out[i] = norm[i] > 1e-6 ? out[i] / norm[i] : 0;
+  return out;
+}
+
+const PRESETS = { light: [0, 0], medium: [2, -18], strong: [4, -24] };
+
+function processDebleed(saxCh, refMono, sr, preset, progress) {
+  const N = sr > 60000 ? 32768 : 16384;
+  const [alpha, fl] = PRESETS[preset];
+  const outs = [], bleeds = [];
+  const nC = saxCh.length;
+  saxCh.forEach((ch, ci) => {
+    const p = x => progress && progress((ci + x) / nC);
+    const lin = linearDebleed(ch, refMono, N, alpha ? x => p(0.6 * x) : p);
+    const out = alpha ? postFilter(lin.clean, lin.bleed, alpha, fl, x => p(0.6 + 0.4 * x)) : lin.clean;
+    outs.push(out); bleeds.push(lin.bleed);
+  });
+  return { outs, bleeds };
+}
+
+
+
+self.onmessage = e => {
+  const { sax, ref, sr, preset } = e.data;
+  const res = processDebleed(sax.map(a => Float64Array.from(a)), Float64Array.from(ref), sr, preset, p => self.postMessage({ progress: p }));
+  self.postMessage({ done: true, outs: res.outs.map(a => Float32Array.from(a)), bleeds: res.bleeds.map(a => Float32Array.from(a)) });
+};
+</script>
+<script>
+const T = {
+ en:{},
+ es:{title:"Quitar spill",lede:"Quita el spill de un instrumento en el mic de otro usando una grabación limpia del instrumento que se cuela. Todo funciona en tu navegador; tu audio no se sube a ningún lado.",
+ s1:"Cargá dos archivos WAV",s1h:"Exportá las dos pistas desde tu DAW desde el mismo punto de inicio, con la misma duración y frecuencia de muestreo. WAV mono o estéreo, 16/24/32 bits.",
+ tgt:"Pista a limpiar",tgtm:"Ej.: mic del saxo con spill de guitarra. Hacé clic o arrastrá un archivo.",ref:"Fuente del spill (referencia)",refm:"Ej.: DI o close mic de guitarra. Hacé clic o arrastrá un archivo.",
+ s2:"Elegí la intensidad",pl:"Suave",plh:"Solo resta el spill. Lo más seguro, sin artefactos.",pm:"Media",pmh:"Agrega una limpieza espectral suave de lo que queda.",ps:"Fuerte",psh:"Lo más limpio. Revisá las colas de las notas.",
+ s3:"Procesá y escuchá",go:"Quitar spill",wait:"Esperando los dos archivos.",orig:"Original",clean:"Limpio",removed:"Quitado",
+ removedh:"“Quitado” debería sonar solo al instrumento de referencia. Si se oye el otro instrumento, usá una intensidad menor.",
+ save:"Descargar WAV limpio",
+ how:"Cómo funciona y consejos",t1:"La herramienta compara las dos pistas a lo largo de todo el archivo y aprende cómo llega la referencia al otro mic: nivel, EQ, retardo y polaridad. Después reconstruye ese spill a partir de la referencia y lo resta.",
+ t2:"Funciona mejor con una DI o un close mic del instrumento que se cuela. Los desfases pequeños (hasta ~100 ms) se compensan solos.",
+ t3:"Funciona mejor cuando el spill es una copia \"lineal\" de la referencia. Si hay mucha distorsión de ampli o el músico se mueve, queda algo de residuo; para eso están Media y Fuerte.",
+ t4:"El archivo limpio sale en 24 bits y con la misma duración que el original. Ponelo al inicio de la sesión y queda alineado."}
+};
+const msgs = {
+ en:{ready:"Ready.",working:"Processing… ",done:"Done in ",s:" s",err_sr:"The two files have different sample rates. Export them at the same rate.",err_wav:"Couldn't read this file. Use an uncompressed WAV (PCM or float).",
+     red:"Spill reduced",where:"where only the reference plays",len:"Lengths differ; using the shorter one."},
+ es:{ready:"Listo para procesar.",working:"Procesando… ",done:"Terminado en ",s:" s",err_sr:"Los dos archivos tienen distinta frecuencia de muestreo. Exportalos con la misma.",err_wav:"No se pudo leer el archivo. Usá un WAV sin compresión (PCM o float).",
+     red:"Spill reducido",where:"donde solo suena la referencia",len:"Las duraciones no coinciden; se usa la más corta."}
+};
+let lang = "en", lastDb = null;
+function renderStats(){ if(lastDb===null) return; document.getElementById("stats").innerHTML=`<span class="chip">${M("red")} <b>${lastDb.toFixed(1)} dB</b> ${M("where")}</span>`; }
+const EN = {}; document.querySelectorAll("[data-i18n]").forEach(el => EN[el.dataset.i18n] = el.textContent);
+const M = k => msgs[lang][k];
+function setLang(l){ lang=l; document.documentElement.lang=l;
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ const k=el.dataset.i18n; if((el.id==="meta-target"&&files.target)||(el.id==="meta-ref"&&files.ref)) return; el.textContent=(l==="es"&&T.es[k])||EN[k]; });
+  document.getElementById("lang-en").setAttribute("aria-pressed",l==="en"); document.getElementById("lang-es").setAttribute("aria-pressed",l==="es");
+  if(statusKey) setStatus(statusKey, statusExtra, statusErr); renderStats();
+  try{localStorage.setItem("spill-lang",l)}catch(e){}
+}
+document.getElementById("lang-en").onclick=()=>setLang("en");
+document.getElementById("lang-es").onclick=()=>setLang("es");
+
+let statusKey=null,statusExtra="",statusErr=false;
+function setStatus(k,extra="",err=false){statusKey=k;statusExtra=extra;statusErr=err;const s=document.getElementById("status");s.textContent=(k?M(k):"")+extra;s.classList.toggle("err",err);}
+
+// ---------- WAV I/O ----------
+function readWav(buf){
+  const dv=new DataView(buf); const tag=o=>String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));
+  if(tag(0)!=="RIFF"&&tag(0)!=="RF64"||tag(8)!=="WAVE") throw 0;
+  let p=12,fmt=null,data=null;
+  while(p+8<=dv.byteLength){const id=tag(p);let sz=dv.getUint32(p+4,true);
+    if(id==="fmt "){let f=dv.getUint16(p+8,true);const ch=dv.getUint16(p+10,true),sr=dv.getUint32(p+12,true),bits=dv.getUint16(p+22,true);
+      if(f===0xFFFE&&sz>=40)f=dv.getUint16(p+32,true); fmt={f,ch,sr,bits};}
+    else if(id==="data"){ if(sz===0xFFFFFFFF||p+8+sz>dv.byteLength) sz=dv.byteLength-p-8; data={o:p+8,sz};}
+    p+=8+sz+(sz&1);}
+  if(!fmt||!data) throw 0;
+  const {f,ch,sr,bits}=fmt, bps=bits/8, n=Math.floor(data.sz/(bps*ch)); const out=[];for(let c=0;c<ch;c++)out.push(new Float32Array(n));
+  for(let i=0;i<n;i++)for(let c=0;c<ch;c++){const o=data.o+(i*ch+c)*bps;let v;
+    if(f===3) v=bits===64?dv.getFloat64(o,true):dv.getFloat32(o,true);
+    else if(f===1){ if(bits===16)v=dv.getInt16(o,true)/32768; else if(bits===24){v=(dv.getUint8(o)|dv.getUint8(o+1)<<8|dv.getInt8(o+2)<<16)/8388608;}
+      else if(bits===32)v=dv.getInt32(o,true)/2147483648; else if(bits===8)v=(dv.getUint8(o)-128)/128; else throw 0;}
+    else throw 0; out[c][i]=v;}
+  return {sr,ch:out,n};
+}
+function writeWav24(chs,sr){
+  const n=chs[0].length,C=chs.length,ds=n*C*3,b=new ArrayBuffer(44+ds),dv=new DataView(b);
+  const w=(o,s)=>{for(let i=0;i<4;i++)dv.setUint8(o+i,s.charCodeAt(i))};
+  w(0,"RIFF");dv.setUint32(4,36+ds,true);w(8,"WAVE");w(12,"fmt ");dv.setUint32(16,16,true);dv.setUint16(20,1,true);dv.setUint16(22,C,true);
+  dv.setUint32(24,sr,true);dv.setUint32(28,sr*C*3,true);dv.setUint16(32,C*3,true);dv.setUint16(34,24,true);w(36,"data");dv.setUint32(40,ds,true);
+  let o=44;for(let i=0;i<n;i++)for(let c=0;c<C;c++){let v=Math.max(-1,Math.min(1,chs[c][i]));let s=Math.round(v*8388607);
+    dv.setUint8(o,s&255);dv.setUint8(o+1,(s>>8)&255);dv.setUint8(o+2,(s>>16)&255);o+=3;}
+  return new Uint8Array(b);
+}
+// ---------- UI ----------
+const files={target:null,ref:null};
+function bindDrop(key){
+  const d=document.getElementById("drop-"+key),inp=document.getElementById("file-"+key),meta=document.getElementById("meta-"+key);
+  const load=async f=>{ if(!f)return; try{const w=readWav(await f.arrayBuffer()); files[key]={name:f.name,...w};
+      meta.textContent=`${f.name} · ${w.ch.length===1?"mono":w.ch.length+" ch"} · ${(w.sr/1000).toFixed(1)} kHz · ${(w.n/w.sr).toFixed(1)} s`; d.classList.add("ok"); setStatus(null); check();}
+    catch(e){files[key]=null;d.classList.remove("ok");meta.textContent=f.name;setStatus("err_wav","",true);check();}};
+  inp.onchange=()=>load(inp.files[0]);
+  d.ondragover=e=>{e.preventDefault();d.classList.add("over")};d.ondragleave=()=>d.classList.remove("over");
+  d.ondrop=e=>{e.preventDefault();d.classList.remove("over");load(e.dataTransfer.files[0])};
+}
+bindDrop("target");bindDrop("ref");
+const go=document.getElementById("go"),bar=document.getElementById("bar");
+function check(){const ok=files.target&&files.ref;go.disabled=!ok;
+  if(ok&&files.target.sr!==files.ref.sr){go.disabled=true;setStatus("err_sr","",true);return;}
+  if(ok)setStatus("ready",files.target.n!==files.ref.n?" "+M("len"):"");}
+const workerURL=URL.createObjectURL(new Blob([document.getElementById("dsp-src").textContent],{type:"text/javascript"}));
+let last=null,urls=[];
+function wavURL(chs,sr){const u=URL.createObjectURL(new Blob([writeWav24(chs,sr)],{type:"audio/wav"}));urls.push(u);return u;}
+function rms(x,a,b){let s=0;for(let i=a;i<b;i++)s+=x[i]*x[i];return s/Math.max(1,b-a);}
+go.onclick=()=>{
+  const t=files.target,r=files.ref,n=Math.min(t.n,r.n),sr=t.sr;
+  const ref=new Float32Array(n);r.ch.forEach(c=>{for(let i=0;i<n;i++)ref[i]+=c[i]/r.ch.length});
+  const sax=t.ch.map(c=>c.slice(0,n));
+  const preset=document.querySelector('input[name="preset"]:checked').value;
+  go.disabled=true;bar.style.width="0";setStatus("working","0%");const t0=performance.now();
+  const wk=new Worker(workerURL);
+  wk.onmessage=e=>{const d=e.data;
+    if(d.progress!==undefined){bar.style.width=(d.progress*100).toFixed(1)+"%";setStatus("working",Math.round(d.progress*100)+"%");return;}
+    wk.terminate();bar.style.width="100%";go.disabled=false;
+    setStatus("done",((performance.now()-t0)/1000).toFixed(1)+M("s"));
+    urls.forEach(u=>URL.revokeObjectURL(u));urls=[];
+    last={outs:d.outs,sr,name:t.name.replace(/\.wav$/i,"")+"_spill-removed_"+preset+".wav"};
+    document.getElementById("a-orig").src=wavURL(sax,sr);
+    document.getElementById("a-clean").src=wavURL(d.outs,sr);
+    document.getElementById("a-bleed").src=wavURL(d.bleeds,sr);
+    // reduction in the quietest-target / loudest-reference blocks (estimate of "reference only" regions)
+    const blk=Math.floor(sr/4),nb=Math.floor(n/blk),rows=[];
+    for(let b=0;b<nb;b++){const a=b*blk,z=a+blk;let tb=0,tc=0;t.ch.forEach((c,i)=>{tb+=rms(c,a,z);tc+=rms(d.outs[i],a,z)});rows.push({tb,tc,rr:rms(ref,a,z)});}
+    const sel=rows.filter(x=>x.rr>0).sort((x,y)=>(x.tb/x.rr)-(y.tb/y.rr)).slice(0,Math.max(1,Math.floor(rows.length*0.15)));
+    const before=sel.reduce((s,x)=>s+x.tb,0),after=sel.reduce((s,x)=>s+x.tc,0);
+    const db=after>0?10*Math.log10(before/after):0;
+    lastDb=db;renderStats();
+    document.getElementById("result").hidden=false;
+  };
+  wk.postMessage({sax,ref,sr,preset});
+};
+document.getElementById("save").onclick=()=>{
+  if(!last)return;
+  const u=URL.createObjectURL(new Blob([writeWav24(last.outs,last.sr)],{type:"audio/wav"}));
+  const a=document.createElement("a");a.href=u;a.download=last.name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),10000);
+};
+try{const l=localStorage.getItem("spill-lang");if(l==="es"||l==="en")setLang(l);}catch(e){}
+</script>
+</body>
+</html>
